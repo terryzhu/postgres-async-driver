@@ -14,6 +14,7 @@
 
 package com.github.pgasync.impl.netty;
 
+import com.github.pgasync.dal.PGContext;
 import com.github.pgasync.impl.io.*;
 import com.github.pgasync.impl.message.Message;
 import io.netty.buffer.ByteBuf;
@@ -27,33 +28,53 @@ import java.util.Map;
 
 /**
  * Encodes PostgreSQL protocol V3 messages to bytes.
- * 
+ *
  * @author Antti Laisi
  */
 public class ByteBufMessageEncoder extends MessageToByteEncoder<Message> {
 
-    static final Map<Class<?>,Encoder<?>> ENCODERS = new HashMap<>();
+    static final Map<Class<?>, Encoder<?>> ENCODERS = new HashMap<>();
+
     static {
+        // @formatter:off
         for (Encoder<?> encoder : new Encoder<?>[] {
                 new SSLHandshakeEncoder(),
                 new StartupMessageEncoder(),
+                new AuthenticationDecoder(),
                 new PasswordMessageEncoder(),
-                new QueryEncoder(), 
-                new ParseEncoder(), 
-                new BindEncoder(), 
+                new ReadyForQueryDecoder(),
+                new QueryEncoder(),
+                new RowDescriptionDecoder(),
+                new ParseEncoder(),
+                new BindEncoder(),
                 new ExtendedQueryEncoder(),
                 new TerminateEncoder() }) {
             ENCODERS.put(encoder.getMessageType(), encoder);
         }
+        // @formatter:on
     }
 
     final ByteBuffer buffer = ByteBuffer.allocate(4096);
+
+    private final PGContext pgctx;
+    private PGContext.SIDE side = null;
+
+    public ByteBufMessageEncoder(PGContext pgContext, PGContext.SIDE side) {
+        this.pgctx = pgContext;
+        this.side = side;
+    }
+
+    public ByteBufMessageEncoder() {
+        this.pgctx = null;
+    }
 
     @Override
     @SuppressWarnings("unchecked")
     protected void encode(ChannelHandlerContext ctx, Message msg, ByteBuf out) throws Exception {
         Encoder<Message> encoder = (Encoder<Message>) ENCODERS.get(msg.getClass());
-
+        if (encoder == null) {
+            System.out.println(msg.getClass() + " has no encoder: " + msg);
+        }
         buffer.clear();
         ByteBuffer msgbuf = buffer;
         try {
@@ -64,7 +85,7 @@ public class ByteBufMessageEncoder extends MessageToByteEncoder<Message> {
                 } catch (BufferOverflowException overflow) {
                     // large clob/blob, resize buffer aggressively
                     msgbuf = ByteBuffer.allocate(msgbuf.capacity() * 4);
-                } 
+                }
             }
 
             msgbuf.flip();

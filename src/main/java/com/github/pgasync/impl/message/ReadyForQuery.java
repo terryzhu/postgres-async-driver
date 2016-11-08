@@ -18,7 +18,9 @@ package com.github.pgasync.impl.message;
  * @author  Antti Laisi
  */
 public enum ReadyForQuery implements Message {
+
     INSTANCE;
+    public static final byte IDLE = 73;
 
     @Override
     public String toString() {

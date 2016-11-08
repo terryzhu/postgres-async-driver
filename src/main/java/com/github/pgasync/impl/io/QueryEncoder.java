@@ -17,12 +17,13 @@ package com.github.pgasync.impl.io;
 import com.github.pgasync.impl.message.Query;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 
 import static com.github.pgasync.impl.io.IO.putCString;
 
 /**
  * See <a href="www.postgresql.org/docs/9.3/static/protocol-message-formats.html">PostgreSQL message formats</a>
- *
+ * <p>
  * <pre>
  * Query (F)
  *  Byte1('Q')
@@ -35,7 +36,7 @@ import static com.github.pgasync.impl.io.IO.putCString;
  *
  * @author Antti Laisi
  */
-public class QueryEncoder implements Encoder<Query> {
+public class QueryEncoder implements Encoder<Query>, Decoder<Query> {
 
     @Override
     public Class<Query> getMessageType() {
@@ -48,5 +49,20 @@ public class QueryEncoder implements Encoder<Query> {
         buffer.putInt(0);
         putCString(buffer, msg.getQuery());
         buffer.putInt(1, buffer.position() - 1);
+    }
+
+    @Override
+    public byte getMessageId() {
+        return 'Q';
+    }
+
+    @Override
+    public Query read(ByteBuffer buffer) {
+        byte[] data = new byte[buffer.remaining()-1];
+        buffer.get(data);
+        buffer.get();
+        String sql = new String(data, Charset.forName("utf8"));
+        System.out.println("SQL: " + sql);
+        return new Query(sql);
     }
 }

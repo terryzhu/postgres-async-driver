@@ -24,7 +24,14 @@ public class RowDescription implements Message {
     public static class ColumnDescription {
 
         final String name;
+        public int tableOid;
+        public short positionInTable;
+
         final Oid type;
+        public int typeLength;
+        public int typeModifier;
+        public int formatType;
+
 
         public ColumnDescription(String name, Oid type) {
             this.name = name;

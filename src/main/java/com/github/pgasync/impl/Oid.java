@@ -81,7 +81,7 @@ public enum Oid {
     HSTORE(33670)
     ;
 
-    final int id;
+    public final int id;
 
     Oid(int id) {
         this.id = id;

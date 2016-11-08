@@ -22,7 +22,7 @@ import static com.github.pgasync.impl.io.IO.bytes;
 
 /**
  * See <a href="www.postgresql.org/docs/9.3/static/protocol-message-formats.html">PostgreSQL message formats</a>
- *
+ * <p>
  * <pre>
  * PasswordMessage (F)
  *  Byte1('p')
@@ -35,7 +35,7 @@ import static com.github.pgasync.impl.io.IO.bytes;
  *
  * @author Antti Laisi
  */
-public class PasswordMessageEncoder implements Encoder<PasswordMessage> {
+public class PasswordMessageEncoder implements Encoder<PasswordMessage>, Decoder<PasswordMessage> {
 
     @Override
     public Class<PasswordMessage> getMessageType() {
@@ -51,4 +51,15 @@ public class PasswordMessageEncoder implements Encoder<PasswordMessage> {
         buffer.putInt(1, buffer.position() - 1);
     }
 
+    @Override
+    public byte getMessageId() {
+        return 'p';
+    }
+
+    @Override
+    public PasswordMessage read(ByteBuffer buffer) {
+        byte[] data = new byte[buffer.remaining()];
+        buffer.get(data);
+        return new PasswordMessage(data);
+    }
 }

@@ -17,6 +17,8 @@ package com.github.pgasync.impl.io;
 import com.github.pgasync.impl.message.StartupMessage;
 
 import java.nio.ByteBuffer;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static com.github.pgasync.impl.io.IO.putCString;
 
@@ -45,7 +47,7 @@ import static com.github.pgasync.impl.io.IO.putCString;
  *
  * @author Antti Laisi
  */
-public class StartupMessageEncoder implements Encoder<StartupMessage> {
+public class StartupMessageEncoder implements Encoder<StartupMessage>,Decoder<StartupMessage> {
 
     @Override
     public Class<StartupMessage> getMessageType() {
@@ -68,4 +70,40 @@ public class StartupMessageEncoder implements Encoder<StartupMessage> {
         buffer.putInt(0, buffer.position());
     }
 
+    @Override
+    public byte getMessageId() {
+        return 'I';
+    }
+
+    @Override
+    public StartupMessage read(ByteBuffer buffer) {
+        Map<String, String> params = parseParams(buffer);
+        System.out.println(params);
+        return new StartupMessage(params.get("user"), params.get("database"));
+    }
+
+    private static Map<String, String> parseParams(ByteBuffer buffer) {
+        byte read = -1;
+        Map<String, String> params = new LinkedHashMap<>();
+        StringBuilder sb = new StringBuilder();
+        boolean isKey = true;
+        String key = null;
+        // read 196608
+        buffer.getInt();
+        while (buffer.hasRemaining()) {
+            read = buffer.get();
+            if (read != '\0') {
+                sb.append(String.valueOf((char) read));
+            } else {
+                if (isKey) {
+                    key = sb.toString();
+                } else {
+                    params.put(key, sb.toString());
+                }
+                sb = new StringBuilder();
+                isKey = !isKey;
+            }
+        }
+        return params;
+    }
 }

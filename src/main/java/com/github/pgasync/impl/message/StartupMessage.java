@@ -14,6 +14,10 @@
 
 package com.github.pgasync.impl.message;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.TreeMap;
+
 /**
  * @author  Antti Laisi
  */
@@ -22,6 +26,9 @@ public class StartupMessage implements Message {
     final int protocol = 196608;
     final String username;
     final String database;
+
+    // TODO
+    Map<String,String> params = new LinkedHashMap<>();
 
     public StartupMessage(String username, String database) {
         this.username = username;

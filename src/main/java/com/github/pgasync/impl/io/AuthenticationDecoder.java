@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 
 /**
  * See <a href="www.postgresql.org/docs/9.3/static/protocol-message-formats.html">PostgreSQL message formats</a>
- * 
+ * <p>
  * <pre>
  * AuthenticationOk (B)
  *  Byte1('R')
@@ -29,7 +29,7 @@ import java.nio.ByteBuffer;
  *      Length of message contents in bytes, including self.
  *  Int32(0)
  *      Specifies that the authentication was successful.
- *       
+ *
  * AuthenticationMD5Password (B)
  *  Byte1('R')
  *      Identifies the message as an authentication request.
@@ -40,10 +40,10 @@ import java.nio.ByteBuffer;
  *  Byte4
  *      The salt to use when encrypting the password.
  * </pre>
- * 
+ *
  * @author Antti Laisi
  */
-public class AuthenticationDecoder implements Decoder<Authentication> {
+public class AuthenticationDecoder implements Decoder<Authentication>, Encoder<Authentication> {
 
     static final int OK = 0;
     static final int PASSWORD_MD5_CHALLENGE = 5;
@@ -58,17 +58,37 @@ public class AuthenticationDecoder implements Decoder<Authentication> {
     public Authentication read(ByteBuffer buffer) {
         int type = buffer.getInt();
         switch (type) {
-            case OK:
-                return new Authentication(true, null);
-            case CLEARTEXT_PASSWORD:
-                return new Authentication(false, null);
-            case PASSWORD_MD5_CHALLENGE:
-                byte[] salt = new byte[4];
-                buffer.get(salt);
-                return new Authentication(false, salt);
-            default:
-                throw new UnsupportedOperationException("Unsupported authentication type: " + type);
+        case OK:
+            return new Authentication(true, null);
+        case CLEARTEXT_PASSWORD:
+            return new Authentication(false, null);
+        case PASSWORD_MD5_CHALLENGE:
+            byte[] salt = new byte[4];
+            buffer.get(salt);
+            return new Authentication(false, salt);
+        default:
+            throw new UnsupportedOperationException("Unsupported authentication type: " + type);
         }
     }
 
+    @Override
+    public Class<Authentication> getMessageType() {
+        return Authentication.class;
+    }
+
+    @Override
+    public void write(Authentication msg, ByteBuffer buffer) {
+        buffer.put(getMessageId());
+        buffer.putInt(0);
+        if (msg.isAuthenticationOk()) {
+            buffer.putInt(OK);
+        } else if (msg.getMd5Salt() == null) {
+            buffer.putInt(CLEARTEXT_PASSWORD);
+        } else {
+            buffer.putInt(PASSWORD_MD5_CHALLENGE);
+            buffer.put(msg.getMd5Salt());
+        }
+        buffer.putInt(1, buffer.position() - 1);
+
+    }
 }

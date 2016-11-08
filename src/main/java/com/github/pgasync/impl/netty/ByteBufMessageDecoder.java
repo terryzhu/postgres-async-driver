@@ -14,8 +14,11 @@
 
 package com.github.pgasync.impl.netty;
 
+import com.github.pgasync.dal.PGContext;
 import com.github.pgasync.impl.io.*;
+import com.github.pgasync.impl.message.Message;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 
@@ -26,23 +29,41 @@ import java.util.Map;
 
 /**
  * Decodes incoming bytes to PostgreSQL V3 protocol message instances.
- * 
+ *
  * @author Antti Laisi
  */
-class ByteBufMessageDecoder extends ByteToMessageDecoder {
+public class ByteBufMessageDecoder extends ByteToMessageDecoder {
 
-    static final Map<Byte,Decoder<?>> DECODERS = new HashMap<>();
+    static final Map<Byte, Decoder<?>> DECODERS = new HashMap<>();
+
     static {
-        for (Decoder<?> decoder : new Decoder<?>[] { 
-                new ErrorResponseDecoder(), 
+        // @formatter:off
+        for (Decoder<?> decoder : new Decoder<?>[] {
+                new StartupMessageEncoder(),
+//                new ErrorResponseDecoder(),
                 new AuthenticationDecoder(),
-                new ReadyForQueryDecoder(), 
-                new RowDescriptionDecoder(), 
-                new CommandCompleteDecoder(),
-                new DataRowDecoder(),
-                new NotificationResponseDecoder() }) {
+                new PasswordMessageEncoder(),
+                new ReadyForQueryDecoder(),
+                new QueryEncoder(),
+                new RowDescriptionDecoder(),
+//                new CommandCompleteDecoder(),
+//                new DataRowDecoder(),
+                new NotificationResponseDecoder()}) {
             DECODERS.put(decoder.getMessageId(), decoder);
         }
+        // @formatter:on
+    }
+
+    private final PGContext pgctx;
+    private PGContext.SIDE side = null;
+
+    public ByteBufMessageDecoder(PGContext pgContext, PGContext.SIDE side) {
+        this.pgctx = pgContext;
+        this.side = side;
+    }
+
+    public ByteBufMessageDecoder() {
+        this.pgctx = null;
     }
 
     @Override
@@ -55,13 +76,28 @@ class ByteBufMessageDecoder extends ByteToMessageDecoder {
         int length = in.readInt();
 
         Decoder<?> decoder = DECODERS.get(id);
+        if (decoder == null) {
+            System.out.println((char) id + " has no decoder: ");
+        }
         try {
             if (decoder != null) {
                 ByteBuffer buffer = in.nioBuffer();
-                out.add(decoder.read(buffer));
+                //                out.add(decoder.read(buffer));
+                Message msg = decoder.read(buffer);
                 in.skipBytes(buffer.position());
+                if (side == PGContext.SIDE.CLIENT) {
+                    pgctx.serverWriteAndFlush(msg);
+                } else {
+                    pgctx.clientWriteAndFlush(msg);
+                }
             } else {
+                ByteBuf buffer = Unpooled.buffer().writeByte(id).writeInt(length).writeBytes(in.nioBuffer());
                 in.skipBytes(length - 4);
+                if (side == PGContext.SIDE.CLIENT) {
+                    pgctx.serverWriteAndFlush(buffer);
+                } else {
+                    pgctx.clientWriteAndFlush(buffer);
+                }
             }
         } catch (Throwable t) {
             // broad catch as otherwise the exception is silently dropped

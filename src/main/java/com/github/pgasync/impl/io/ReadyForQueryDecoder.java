@@ -33,7 +33,7 @@ import java.nio.ByteBuffer;
  *
  * @author Antti Laisi
  */
-public class ReadyForQueryDecoder implements Decoder<ReadyForQuery> {
+public class ReadyForQueryDecoder implements Decoder<ReadyForQuery>,Encoder<ReadyForQuery> {
 
     @Override
     public ReadyForQuery read(ByteBuffer buffer) {
@@ -46,4 +46,16 @@ public class ReadyForQueryDecoder implements Decoder<ReadyForQuery> {
         return 'Z';
     }
 
+    @Override
+    public Class<ReadyForQuery> getMessageType() {
+        return ReadyForQuery.class;
+    }
+
+    @Override
+    public void write(ReadyForQuery msg, ByteBuffer buffer) {
+        buffer.put(getMessageId());
+        buffer.putInt(0);
+        buffer.put(ReadyForQuery.IDLE);
+        buffer.putInt(1, buffer.position() - 1);
+    }
 }

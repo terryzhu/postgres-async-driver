@@ -18,13 +18,15 @@ import com.github.pgasync.impl.Oid;
 import com.github.pgasync.impl.message.RowDescription;
 import com.github.pgasync.impl.message.RowDescription.ColumnDescription;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 
 import static com.github.pgasync.impl.io.IO.getCString;
 
 /**
  * See <a href="www.postgresql.org/docs/9.3/static/protocol-message-formats.html">PostgreSQL message formats</a>
- *
+ * <p>
  * <pre>
  * RowDescription (B)
  *  Byte1('T')
@@ -52,7 +54,7 @@ import static com.github.pgasync.impl.io.IO.getCString;
  *
  * @author Antti Laisi
  */
-public class RowDescriptionDecoder implements Decoder<RowDescription> {
+public class RowDescriptionDecoder implements Decoder<RowDescription>, Encoder<RowDescription> {
 
     @Override
     public byte getMessageId() {
@@ -66,13 +68,43 @@ public class RowDescriptionDecoder implements Decoder<RowDescription> {
 
         for (int i = 0; i < columns.length; i++) {
             String name = getCString(buffer, bytes);
-            buffer.position(buffer.position() + 6);
+            int tableOid = buffer.getInt();
+            short positionInTable = buffer.getShort();
             Oid type = Oid.valueOfId(buffer.getInt());
-            buffer.position(buffer.position() + 8);
+            int typeLength = buffer.getShort();
+            int typeModifier = buffer.getInt();
+            int formatType = buffer.getShort();
             columns[i] = new ColumnDescription(name, type);
+            columns[i].tableOid = tableOid;
+            columns[i].positionInTable = positionInTable;
+            columns[i].typeLength = typeLength;
+            columns[i].typeModifier = typeModifier;
+            columns[i].formatType = formatType;
         }
 
         return new RowDescription(columns);
     }
 
+    @Override
+    public void write(RowDescription msg, ByteBuffer buffer) {
+        buffer.put(getMessageId());
+        buffer.putInt(0);
+        buffer.putShort((short) msg.getColumns().length);
+        for (int i = 0; i < msg.getColumns().length; i++) {
+            ColumnDescription col = msg.getColumns()[i];
+            buffer.put(col.getName().getBytes()).put((byte) 0);
+            buffer.putInt(col.tableOid);
+            buffer.putShort(col.positionInTable);
+            buffer.putInt(col.getType().id);
+            buffer.putShort((short) col.typeLength);
+            buffer.putInt(col.typeModifier);
+            buffer.putShort((short) col.formatType);
+        }
+        buffer.putInt(1, buffer.position() - 1);
+    }
+
+    @Override
+    public Class<RowDescription> getMessageType() {
+        return RowDescription.class;
+    }
 }
